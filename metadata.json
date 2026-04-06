@@ -1,0 +1,5 @@
+{
+  "name": "WinGo Betting Platform",
+  "description": "A modern responsive WinGo betting game with real-time timers, wallet simulation, and game history.",
+  "requestFramePermissions": []
+}

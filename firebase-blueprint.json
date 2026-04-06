@@ -1,0 +1,199 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and balance information.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address."
+        },
+        "balance": {
+          "type": "number",
+          "description": "User's current balance."
+        },
+        "role": {
+          "type": "string",
+          "description": "User's role (admin or user).",
+          "enum": ["admin", "user"]
+        },
+        "referredBy": {
+          "type": "string",
+          "description": "UID of the user who referred this user."
+        },
+        "referralEarnings": {
+          "type": "number",
+          "description": "Total earnings from referrals."
+        },
+        "referralCount": {
+          "type": "integer",
+          "description": "Number of users referred."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 creation timestamp."
+        }
+      },
+      "required": ["uid", "email", "balance", "role", "createdAt"]
+    },
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Used for testing the Firestore connection.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "GlobalSettings": {
+      "title": "GlobalSettings",
+      "description": "Global application settings like ads.",
+      "type": "object",
+      "properties": {
+        "adHtml": {
+          "type": "string",
+          "description": "HTML code for the advertisement."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp."
+        }
+      }
+    },
+    "PaymentMethods": {
+      "title": "PaymentMethods",
+      "description": "Payment methods configuration.",
+      "type": "object",
+      "properties": {
+        "jazzcash": {
+          "type": "object",
+          "properties": {
+            "accountName": { "type": "string" },
+            "accountNumber": { "type": "string" }
+          }
+        },
+        "easypaisa": {
+          "type": "object",
+          "properties": {
+            "accountName": { "type": "string" },
+            "accountNumber": { "type": "string" }
+          }
+        },
+        "bank": {
+          "type": "object",
+          "properties": {
+            "accountName": { "type": "string" },
+            "accountNumber": { "type": "string" },
+            "bankName": { "type": "string" }
+          }
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Deposit": {
+      "title": "Deposit",
+      "description": "User deposit request.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "userEmail": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["bank", "easypaisa", "jazzcash"]
+        },
+        "screenshotBase64": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "timestamp": {
+          "type": "number"
+        },
+        "processedAt": {
+          "type": "number"
+        }
+      },
+      "required": ["userId", "userEmail", "amount", "method", "screenshotBase64", "status", "timestamp"]
+    },
+    "Withdrawal": {
+      "title": "Withdrawal",
+      "description": "User withdrawal request.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "userEmail": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["bank", "easypaisa", "jazzcash"]
+        },
+        "accountDetails": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "timestamp": {
+          "type": "number"
+        },
+        "processedAt": {
+          "type": "number"
+        }
+      },
+      "required": ["userId", "userEmail", "amount", "method", "accountDetails", "status", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User documents stored by UID."
+    },
+    "/test/connection": {
+      "schema": "TestConnection",
+      "description": "Connection test document."
+    },
+    "/settings/global": {
+      "schema": "GlobalSettings",
+      "description": "Global application settings."
+    },
+    "/settings/paymentMethods": {
+      "schema": "PaymentMethods",
+      "description": "Payment methods configuration."
+    },
+    "/deposits/{depositId}": {
+      "schema": "Deposit",
+      "description": "User deposit requests."
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": "Withdrawal",
+      "description": "User withdrawal requests."
+    }
+  }
+}

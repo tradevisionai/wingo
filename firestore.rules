@@ -1,0 +1,211 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - email: string (required) - User's email address
+    //   - balance: number (required) - User's current balance
+    //   - role: string (required, enum: ['admin', 'user']) - User's role
+    //   - createdAt: string (required, format: date-time) - ISO 8601 creation timestamp
+    //
+    // Collection: test
+    // Document ID: connection
+    // Fields:
+    //   - status: string (optional)
+    //
+    // Collection: settings
+    // Document ID: global
+    // Fields:
+    //   - adHtml: string (optional) - HTML code for the advertisement
+    //   - updatedAt: string (optional, format: date-time) - Last update timestamp
+    //
+    // Collection: settings
+    // Document ID: paymentMethods
+    // Fields:
+    //   - jazzcash: map (optional)
+    //   - easypaisa: map (optional)
+    //   - bank: map (optional)
+    //   - updatedAt: string (optional, format: date-time)
+    //
+    // Collection: deposits
+    // Document ID: {depositId}
+    // Fields:
+    //   - userId: string (required)
+    //   - userEmail: string (required)
+    //   - amount: number (required)
+    //   - method: string (required, enum: ['bank', 'easypaisa', 'jazzcash'])
+    //   - screenshotBase64: string (required)
+    //   - status: string (required, enum: ['pending', 'approved', 'rejected'])
+    //   - timestamp: number (required)
+    //   - processedAt: number (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          request.auth.token.email == "wppgrouplinks@gmail.com");
+    }
+
+    function isNotBlocked() {
+      return !isAuthenticated() || 
+             !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked == false;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'balance', 'role', 'createdAt']) &&
+             data.email is string &&
+             data.balance is number &&
+             data.role in ['admin', 'user'] &&
+             data.createdAt is string &&
+             (!('uid' in data) || data.uid is string) &&
+             (!('isBlocked' in data) || data.isBlocked is bool) &&
+             (!('referredBy' in data) || data.referredBy is string || data.referredBy == null) &&
+             (!('referralEarnings' in data) || data.referralEarnings is number) &&
+             (!('referralCount' in data) || data.referralCount is number) &&
+             (!('totalDeposited' in data) || data.totalDeposited is number) &&
+             (!('deleted' in data) || data.deleted is bool);
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['userId', 'type', 'amount', 'status', 'timestamp']) &&
+             data.userId is string &&
+             data.type in ['deposit', 'withdrawal', 'bet', 'win', 'referral_bonus'] &&
+             data.amount is number &&
+             data.status in ['pending', 'completed', 'failed'] &&
+             data.timestamp is number &&
+             (!('method' in data) || data.method is string) &&
+             (!('fromUser' in data) || data.fromUser is string);
+    }
+
+    function isBeingReferredBy(userId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.referredBy == userId;
+    }
+
+    function isValidSettings(data) {
+      return (!('adHtml' in data) || data.adHtml is string) &&
+             (!('updatedAt' in data) || data.updatedAt is string);
+    }
+
+    function isValidPaymentMethods(data) {
+      return (!('jazzcash' in data) || data.jazzcash is map) &&
+             (!('easypaisa' in data) || data.easypaisa is map) &&
+             (!('bank' in data) || data.bank is map) &&
+             (!('updatedAt' in data) || data.updatedAt is string);
+    }
+
+    function isValidDeposit(data) {
+      return data.keys().hasAll(['userId', 'userEmail', 'amount', 'method', 'screenshotBase64', 'status', 'timestamp']) &&
+             data.userId is string &&
+             data.userEmail is string &&
+             data.amount is number &&
+             data.method in ['bank', 'easypaisa', 'jazzcash'] &&
+             data.screenshotBase64 is string &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.timestamp is number &&
+             (!('processedAt' in data) || data.processedAt is number);
+    }
+
+    function isValidWithdrawal(data) {
+      return data.keys().hasAll(['userId', 'userEmail', 'amount', 'method', 'accountDetails', 'status', 'timestamp']) &&
+             data.userId is string &&
+             data.userEmail is string &&
+             data.amount is number &&
+             data.method in ['bank', 'easypaisa', 'jazzcash'] &&
+             data.accountDetails is string &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.timestamp is number &&
+             (!('processedAt' in data) || data.processedAt is number);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /test/connection {
+      allow read: if true; // Allow anyone to test connection
+    }
+
+    match /settings/global {
+      allow read: if true; // Ads are public
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
+    }
+
+    match /settings/paymentMethods {
+      allow read: if isAuthenticated(); // Users need to see payment methods to deposit
+      allow write: if isAdmin() && isValidPaymentMethods(request.resource.data);
+    }
+
+    match /deposits/{depositId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid && 
+                      isValidDeposit(request.resource.data) &&
+                      request.resource.data.status == 'pending';
+      allow update: if isAdmin() && isValidDeposit(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /withdrawals/{withdrawalId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid && 
+                      isValidWithdrawal(request.resource.data) &&
+                      request.resource.data.status == 'pending';
+      allow update: if isAdmin() && isValidWithdrawal(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      
+      allow create: if isAuthenticated() && 
+                      isValidUser(request.resource.data) && 
+                      (request.resource.data.role == 'user' || request.resource.data.email == 'wppgrouplinks@gmail.com' || isAdmin());
+                      
+      allow update: if isAuthenticated() && 
+                      isValidUser(request.resource.data) && 
+                      (
+                        (isOwner(userId) && isNotBlocked() && 
+                         request.resource.data.role == resource.data.role && 
+                         request.resource.data.isBlocked == resource.data.isBlocked) || 
+                        (isBeingReferredBy(userId) && 
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance', 'referralEarnings'])) ||
+                        isAdmin()
+                      );
+                      
+      allow delete: if isAdmin();
+    }
+
+    match /transactions/{txId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && 
+                      (request.resource.data.userId == request.auth.uid || isAdmin()) && 
+                      isValidTransaction(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+  }
+}
